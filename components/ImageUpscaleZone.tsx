@@ -14,13 +14,17 @@ interface UpscaledImage {
   upscaled: string;
   filename: string;
   recordId?: number;
+  provider?: string;
 }
+
+type UpscaleProvider = 'fal' | 'clipdrop';
 
 export default function ImageUpscaleZone() {
   const [files, setFiles] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [upscaledImages, setUpscaledImages] = useState<UpscaledImage[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
+  const [upscaleProvider, setUpscaleProvider] = useState<UpscaleProvider>('clipdrop'); // Default to CLIPDROP
   const { toast } = useToast();
 
   // Get user ID from Supabase on component mount
@@ -109,8 +113,11 @@ export default function ImageUpscaleZone() {
           reader.readAsDataURL(file);
         });
 
+        // Determine which API endpoint to use
+        const endpoint = upscaleProvider === 'clipdrop' ? '/api/clipdrop-upscale' : '/api/upscale';
+
         // Call upscale API with base64 data and userId
-        const response = await fetch("/api/upscale", {
+        const response = await fetch(endpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -132,13 +139,14 @@ export default function ImageUpscaleZone() {
           upscaled: result.upscaledUrl,
           filename: file.name,
           recordId: result.recordId, // Store the Supabase record ID
+          provider: upscaleProvider,
         });
       }
 
       setUpscaledImages(results);
       toast({
         title: "Upscaling complete",
-        description: `Successfully upscaled ${results.length} image(s).`,
+        description: `Successfully upscaled ${results.length} image(s) using ${upscaleProvider === 'clipdrop' ? 'CLIPDROP' : 'FAL.ai'}.`,
         duration: 5000,
       });
     } catch (error) {
@@ -152,7 +160,7 @@ export default function ImageUpscaleZone() {
     } finally {
       setIsLoading(false);
     }
-  }, [files, userId, toast]);
+  }, [files, userId, upscaleProvider, toast]);
 
   const downloadImage = async (url: string, filename: string) => {
     try {
@@ -212,7 +220,27 @@ export default function ImageUpscaleZone() {
 
       {files.length > 0 && (
         <div className="space-y-4">
-          <h3 className="text-lg font-medium">Selected Images ({files.length})</h3>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <h3 className="text-lg font-medium">Selected Images ({files.length})</h3>
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                variant={upscaleProvider === 'fal' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setUpscaleProvider('fal')}
+                title="Use FAL.ai for upscaling"
+              >
+                FAL.ai
+              </Button>
+              <Button
+                variant={upscaleProvider === 'clipdrop' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setUpscaleProvider('clipdrop')}
+                title="Use CLIPDROP for upscaling"
+              >
+                CLIPDROP
+              </Button>
+            </div>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {files.map((file) => (
               <div key={file.name} className="relative group">
@@ -239,7 +267,7 @@ export default function ImageUpscaleZone() {
             disabled={isLoading}
             size="lg"
           >
-            {isLoading ? "Upscaling..." : `Upscale ${files.length} Image(s)`}
+            {isLoading ? "Upscaling..." : `Upscale ${files.length} Image(s) with ${upscaleProvider === 'clipdrop' ? 'CLIPDROP' : 'FAL.ai'}`}
           </Button>
         </div>
       )}
@@ -250,7 +278,12 @@ export default function ImageUpscaleZone() {
           <div className="grid gap-6">
             {upscaledImages.map((result, index) => (
               <div key={index} className="border rounded-lg p-4 space-y-4">
-                <h4 className="font-medium">{result.filename}</h4>
+                <div className="flex justify-between items-center">
+                  <h4 className="font-medium">{result.filename}</h4>
+                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                    {result.provider === 'clipdrop' ? 'CLIPDROP' : 'FAL.ai'}
+                  </span>
+                </div>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <p className="text-sm text-gray-600">Original</p>
